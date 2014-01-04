@@ -130,6 +130,7 @@ static int init_decoder(int32_t fmtp[12]) {
 
     frame_size = fmtp[1]; // stereo samples
     sampling_rate = fmtp[11];
+    debug(1,"Frame size is %d\n",frame_size);
 
     int sample_size = fmtp[3];
     if (sample_size != 16)
@@ -199,17 +200,24 @@ void player_put_packet(seq_t seqno, uint8_t *data, int len) {
         ab_read = seqno;
         ab_synced = 1;
     }
+    
+    debug(2, "seqno packet %04X (%04X:%04X)\n", seqno, ab_read, ab_write);
+    
     if (seq_diff(ab_write, seqno) == 1) {                  // expected packet
         abuf = audio_buffer + BUFIDX(seqno);
         ab_write = seqno;
     } else if (seq_order(ab_write, seqno)) {    // newer than expected
+      
+      
+      debug(1,"seqno: %04X abwrite: %04X seq_order: %d", seqno, ab_write, seq_order(ab_write,seqno));
+      
         rtp_request_resend(ab_write+1, seqno-1);
         abuf = audio_buffer + BUFIDX(seqno);
         ab_write = seqno;
     } else if (seq_order(ab_read, seqno)) {     // late but not yet played
         abuf = audio_buffer + BUFIDX(seqno);
     } else {    // too late.
-        debug(1, "late packet %04X (%04X:%04X)", seqno, ab_read, ab_write);
+        debug(1, "late packet %04X (%04X:%04X)\n", seqno, ab_read, ab_write);
     }
     buf_fill = seq_diff(ab_read, ab_write);
     pthread_mutex_unlock(&ab_mutex);
@@ -241,6 +249,7 @@ static inline short dithered_vol(short sample) {
 
     out = (long)sample * fix_volume;
     if (fix_volume < 0x10000) {
+      debug(1,"dithering the volume\n");
         rand_b = rand_a;
         rand_a = lcg_rand();
         out += rand_a;
@@ -354,6 +363,7 @@ static short *buffer_get_frame(void) {
     if (buf_fill < 1 || !ab_synced) {
         if (buf_fill < 1)
             warn("underrun.");
+        debug(1,"setting ab_buffering back to 1\n");
         ab_buffering = 1;
         pthread_mutex_unlock(&ab_mutex);
         return 0;
@@ -374,7 +384,8 @@ static short *buffer_get_frame(void) {
             next = ab_read + i;
             abuf = audio_buffer + BUFIDX(next);
             if (!abuf->ready) {
-                rtp_request_resend(next, next);
+              debug(1,"requesting resend on %04X\n",next);
+              rtp_request_resend(next, next);
             }
         }
     }
@@ -396,6 +407,7 @@ static int stuff_buffer(double playback_rate, short *inptr, short *outptr) {
     int stuff = 0;
     double p_stuff;
 
+    debug(2,"playback rate is %lf\n", playback_rate);
     p_stuff = 1.0 - pow(1.0 - fabs(playback_rate-1.0), frame_size);
 
     if (rand() < p_stuff * RAND_MAX) {
@@ -408,14 +420,16 @@ static int stuff_buffer(double playback_rate, short *inptr, short *outptr) {
         *outptr++ = dithered_vol(*inptr++);
         *outptr++ = dithered_vol(*inptr++);
     };
+    // JEM 
+    stuff = 0;
     if (stuff) {
         if (stuff==1) {
-            debug(2, "+++++++++\n");
+            debug(1, "+++++++++\n");
             // interpolate one sample
             *outptr++ = dithered_vol(((long)inptr[-2] + (long)inptr[0]) >> 1);
             *outptr++ = dithered_vol(((long)inptr[-1] + (long)inptr[1]) >> 1);
         } else if (stuff==-1) {
-            debug(2, "---------\n");
+            debug(1, "---------\n");
             inptr++;
             inptr++;
         }
@@ -484,6 +498,8 @@ static void *player_thread_func(void *arg) {
 
 // takes the volume as specified by the airplay protocol
 void player_volume(double f) {
+  
+  
     double linear_volume = pow(10.0, 0.05*f);
 
     if (config.output->volume) {
@@ -492,6 +508,7 @@ void player_volume(double f) {
         pthread_mutex_lock(&vol_mutex);
         volume = linear_volume;
         fix_volume = 65536.0 * volume;
+        debug(1,"fixed volume is %08x\n",fix_volume);
         pthread_mutex_unlock(&vol_mutex);
     }
 }

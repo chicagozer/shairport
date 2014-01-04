@@ -27,10 +27,12 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <sys/time.h>
+#include <sndfile.h>
 #include "audio.h"
 
 int Fs;
 long long starttime, samples_played;
+SNDFILE *sndFile;
 
 static int init(int argc, char **argv) {
     return 0;
@@ -44,14 +46,37 @@ static void start(int sample_rate) {
     starttime = 0;
     samples_played = 0;
     printf("dummy audio output started at Fs=%d Hz\n", sample_rate);
+
+	char *file = "out.wav";
+	// Set file settings, 16bit Stereo PCM
+	SF_INFO info;
+	info.format = SF_FORMAT_WAV | SF_FORMAT_PCM_16;
+	info.channels = 2;
+	info.samplerate = sample_rate;
+
+	// Open sound file for writing
+	sndFile = sf_open(file, SFM_WRITE, &info);
+	if (sndFile == NULL) {
+		fprintf(stderr, "Error opening sound file '%s': %s\n", file, sf_strerror(sndFile));
+	}
+
 }
 
 static void play(short buf[], int samples) {
     struct timeval tv;
 
+
+	long writtenFrames = sf_writef_short(sndFile, buf, samples);
+
+//printf("Wrote %ld of %d frames.\n",writtenFrames,samples);
+	// Check correct number of frames saved
+	if (writtenFrames != samples) {
+		fprintf(stderr, "Did not write enough frames for source. %s\n",sf_strerror(sndFile));
+	}
+
+	sf_write_sync(sndFile);
     // this is all a bit expensive but it's long-term stable.
     gettimeofday(&tv, NULL);
-
     long long nowtime = tv.tv_usec + 1e6*tv.tv_sec;
 
     if (!starttime)
@@ -60,13 +85,17 @@ static void play(short buf[], int samples) {
     samples_played += samples;
 
     long long finishtime = starttime + samples_played * 1e6 / Fs;
-
-    usleep(finishtime - nowtime);
+	if (nowtime <  finishtime)
+    		usleep(finishtime - nowtime);
 }
 
 static void stop(void) {
-    printf("dummy audio stopped\n");
+  printf("dummy audio stopped. Closing file\n");
+	sf_close(sndFile);
+  printf("file closed.");
+    
 }
+
 
 static void help(void) {
     printf("    There are no options for dummy audio.\n");

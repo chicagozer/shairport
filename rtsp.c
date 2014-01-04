@@ -406,15 +406,16 @@ static void handle_setup(rtsp_conn_info *conn,
     tport = atoi(p);
 
     rtsp_take_player();
+    debug(1,"### starting setup\n");
     int sport = rtp_setup(&conn->remote, cport, tport);
     if (!sport)
         return;
 
     player_play(&conn->stream);
 
-    char *resphdr = malloc(strlen(hdr) + 20);
+    char *resphdr = malloc(strlen(hdr) + 100);
     strcpy(resphdr, hdr);
-    sprintf(resphdr + strlen(resphdr), ";server_port=%d", sport);
+    sprintf(resphdr + strlen(resphdr), ";server_port=%d;control_port=%d;timing_port=%d", sport, sport, sport);
     msg_add_header(resp, "Transport", resphdr);
 
     msg_add_header(resp, "Session", "1");

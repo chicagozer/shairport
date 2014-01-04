@@ -79,6 +79,45 @@ static void *rtp_receiver(void *arg) {
             }
             debug(1, "Unknown RTP packet of type 0x%02X length %d seqno %d\n", type, nread, seqno);
         }
+        else if (type == 0x54 && nread == 20)
+        {
+          pktp = packet+8;
+          uint8_t hi1 = *(uint16_t *)(pktp++);
+          uint8_t hi2 = *(uint16_t *)(pktp++);
+          uint8_t lo1 = *(uint16_t *)(pktp++);
+          uint8_t lo2 = *(uint16_t *)(pktp++);
+          uint32_t full1 = hi1 << 24 | hi2 << 16 | lo1 << 16 | lo2;
+          //uint32_t full1 = *(uint32_t *)(pktp+8);
+          
+           hi1 = *(uint16_t *)(pktp++);
+           hi2 = *(uint16_t *)(pktp++);
+           lo1 = *(uint16_t *)(pktp++);
+           lo2 = *(uint16_t *)(pktp++);
+          uint32_t full2 = hi1 << 24 | hi2 << 16 | lo1 << 16 | lo2;
+          //uint32_t full2 = *(uint32_t *)(pktp+12);
+          
+           hi1 = *(uint16_t *)(pktp++);
+           hi2 = *(uint16_t *)(pktp++);
+           lo1 = *(uint16_t *)(pktp++);
+           lo2 = *(uint16_t *)(pktp++);
+          uint32_t full3 = hi1 << 24 | hi2 << 16 | lo1 << 16 | lo2;
+          //uint32_t full3 = *(uint32_t *)(pktp+16);
+          
+          debug(1,"Timing:");
+          
+          
+          int i;
+          for (i = 8; i < 20; i++)
+          {
+              debug(1,"%02X", packet[i]);
+          }
+          debug(1,"\n");
+          debug(1,"Timing2: %zu secs %zu frac %zu rtp\n",full1,full2,full3);
+          
+          //debug(1,"Timing %zu secs %zu frac %zu rtp\n", full1, full2,full3);
+          // we got a timing packet just print it
+          continue;
+        }
         warn("Unknown RTP packet of type 0x%02X length %d", type, nread);
     }
 
